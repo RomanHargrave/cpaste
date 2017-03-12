@@ -1,0 +1,3 @@
+[submodule "vnd/inih"]
+	path = vnd/inih
+	url = https://github.com/benhoyt/inih.git
