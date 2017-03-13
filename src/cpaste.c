@@ -489,6 +489,14 @@ HTTP_cpaste_route_main(struct http_request* req)
                     {
                         kore_log(LOG_INFO, "paste intake for %s complete - wrote %li of %li bytes",
                                  paste_id, written, to_paste->length);
+
+                        {
+                            char* _location;
+                            asprintf(&_location, "/%s", paste_id);
+                            http_response_header(req, "Location", _location);
+                            free(_location);
+                        }
+                                    
                         http_response(req, 200, paste_id, strlen(paste_id));
                     }
                     else if (written < 0)
