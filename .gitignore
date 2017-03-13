@@ -1,6 +1,6 @@
 *.o
 .flavor
 .objs
-cprunge.so
+cpaste.so
 assets.h
 cert
