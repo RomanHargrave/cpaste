@@ -548,7 +548,26 @@ HTTP_cpaste_route_view(struct http_request* req)
     struct s_cpaste_config* config = cpaste_get_config();
 
     // Extract paste id from request path
-    char const* paste_id = req->path + 1;
+    char const* paste_id = req->path;
+
+    {
+        char* next = paste_id;
+        do
+        {
+            char* match = strstr(next, "/");
+            if (match != NULL) 
+            {
+                next = match + 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+        while (true);
+
+        paste_id = next;
+    }
 
     kore_log(LOG_INFO, "Retrieving paste %s", paste_id);
 
