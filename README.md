@@ -14,13 +14,13 @@ _Before building cpaste, be sure that the inih source code is present (`git subm
 
 You'll need kore installed to build this, but that should go without saying.
 
-    1. Put build in production mode `kodev flavor prod` 
+1. Put build in production mode `kodev flavor prod` 
 
-    2. Build cpaste `kodev build`
+2. Build cpaste `kodev build`
 
-    3. Make changes to [cpaste.ini](conf/cpaste.ini)
+3. Make changes to [cpaste.ini](conf/cpaste.ini)
 
-    4. Set `CPASTE_CONFIG_FILE` to the location of your configuration file (or place it in the directory cpaste will run in)
+4. Set `CPASTE_CONFIG_FILE` to the location of your configuration file (or place it in the directory cpaste will run in)
 
-    5. Run cpaste
+5. Run cpaste
 
