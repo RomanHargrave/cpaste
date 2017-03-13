@@ -214,10 +214,11 @@ static void
 cpaste_gen_id(uint16_t len, char* dest)
 {
     srand(time(NULL));
-    for(uint16_t charN = 0; charN <= len; ++charN)
+    for(uint16_t charN = 0; charN < len - 1; ++charN)
     {
-        dest[charN] = _id_chars[random() % _id_chars_lim]; 
+        dest[charN] = _id_chars[random() % (_id_chars_lim - 1)]; 
     }
+    dest[len - 1] = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
