@@ -51,6 +51,8 @@
 // __xpg_strerror_r(), even though...
 #include <string.h>
 
+#include <assets.h>
+
 int HTTP_cpaste_route_main(struct http_request*);
 int HTTP_cpaste_route_view(struct http_request*);
 //-------------------------------------------------------------------------------------------------
@@ -92,6 +94,9 @@ struct s_cpaste_config
     uint64_t        _storage_dir_len; 
     //              ^ not in config
     uint32_t        name_length;
+
+    // e.g. hargrave.info/cpaste/ - used to generate response urls, etc...
+    char const*     http_root;
 };
 
 static struct s_cpaste_config* _cpaste_config = NULL;
@@ -105,20 +110,26 @@ _cpaste_inih_impl(void* cb_config, char const* section,
 {
     struct s_cpaste_config* config = (struct s_cpaste_config*) cb_config;
 
-    if (strcmp(section, "storage") == 0)
+    // [storage]
+    if      (strcmp(section, "storage") == 0)
     {
         if      (strcmp(name, "directory") == 0) 
         {
             config->storage_dir         = strdup(value);
             config->_storage_dir_len    = strlen(value);
         }
-        else if (strcmp(name, "namelen") == 0) config->name_length = strtoul(value, NULL, 10);
+        else if (strcmp(name, "namelen") == 0)  config->name_length = strtoul(value, NULL, 10);
         else return 0;
     }
-    // No other sections ATM
+    // [http]
+    else if (strcmp(section, "http") == 0)
+    {
+        if (strcmp(name, "http_root") == 0) config->http_root = strdup(value);
+        else return 0;
+    }
     else
     {
-        return 1;
+        return 0;
     }
 
     return 1;
@@ -160,7 +171,7 @@ cpaste_get_config(void)
         }
         else
         {
-            _cpaste_config = malloc(sizeof(struct s_cpaste_config));
+            _cpaste_config = calloc(1, sizeof(struct s_cpaste_config));
             int parse_result = ini_parse_file(config_file_handle, &_cpaste_inih_impl, _cpaste_config);
             if      (parse_result == 0)
             {
@@ -345,25 +356,6 @@ cpaste_generate_paste(struct s_cpaste_config* config, char** OUT_name)
  * static   /
  */
 
-// Data to send for empty GET / 
-static char const* _resp_default_body =
-    "cpaste(1)                          CPASTE                          cpaste(1)\n"
-    "\n"
-    "NAME\n"
-    "   cpaste: sprunge clone written in a better language than python\n"
-    "\n"
-    "SYNOPSIS\n"
-    "   <command> | curl -F paste=@- (cpaste host)\n"
-    "   curl -F paste=@/path/to/file (cpaste host)\n"
-    "\n"
-    "EXAMPLES\n"
-    "   $ curl -F past=@/path/to/file\n"
-    "       (host)/aB123\n"
-    "\n"
-    "SEE ALSO\n"
-    "   http://github.com/romanhargrave/cpaste\n"
-    ;
-
 static char const* _resp_paste_gen_fail = 
     "unable to generate a new paste\n"
     ;
@@ -390,13 +382,19 @@ int
 HTTP_cpaste_route_main(struct http_request* req)
 {
     struct s_cpaste_config* config = cpaste_get_config();
+
+    /*
+     * Prevent response and landing cache 
+     */
+    http_response_header(req, "Cache-control", "no-cache");
+
     /*
      * If not POST, respond with info
      */
     if (req->method != HTTP_METHOD_POST) 
     {
-    	http_response(req, 200, _resp_default_body, strlen(_resp_default_body));
-    	return (KORE_RESULT_OK);
+        http_response_header(req, "Content-Type", "text/html;");
+        return asset_serve_landing_html(req);
     }
     else
     {
@@ -437,12 +435,9 @@ HTTP_cpaste_route_main(struct http_request* req)
                 //
                 //  Kore can store the request body in two ways, as suggested in http_file_read()
                 //  There can be a file descriptor for it, which allows for file IO 
-                //   (I assume this is used for larger rb's? or binary transfer?)
                 //  Or the RB might be stored in an (mmapped?) memory region at req->http_body->data
                 //
                 // READING THE RB FD (http_body_fd != -1)
-                //
-                //  XXX never tested during development, not sure what conditions cause this 
                 //
                 //  We can perform a copy from fd to fd using the sendfile() system call,
                 //   and specifying the offset as the position of the file
@@ -456,6 +451,11 @@ HTTP_cpaste_route_main(struct http_request* req)
                 ssize_t written = 0;
                 if (req->http_body_fd > 0 || req->http_body != NULL)
                 {
+                    /*
+                     * XXX untested
+                     *
+                     * Handling for HTTP body when disk offloading is enabled
+                     */
                     if (req->http_body_fd > 0)
                     {
                         kore_log(LOG_DEBUG, "request body presented as FD, saving via sendfile()");
@@ -478,6 +478,10 @@ HTTP_cpaste_route_main(struct http_request* req)
                             cpaste_http_resp_string(req, 500, _resp_paste_gen_fail);
                         }
                     }
+
+                    /*
+                     * Normal handling (no disk offloading, body in memory)
+                     */
                     else if (req->http_body != NULL)
                     {
                         kore_log(LOG_DEBUG, "request body presented as region, saving via write()");
@@ -494,12 +498,12 @@ HTTP_cpaste_route_main(struct http_request* req)
 
                         {
                             char* _location;
-                            asprintf(&_location, "/%s", paste_id);
+                            asprintf(&_location, "%s/%s", config->http_root, paste_id);
                             http_response_header(req, "Location", _location);
+                            cpaste_http_resp_string(req, 200, _location); 
                             free(_location);
                         }
-                                    
-                        http_response(req, 200, paste_id, strlen(paste_id));
+
                     }
                     else if (written < 0)
                     {
@@ -547,6 +551,8 @@ int
 HTTP_cpaste_route_view(struct http_request* req)
 {
     struct s_cpaste_config* config = cpaste_get_config();
+
+    http_response_header(req, "Cache-control", "no-cache");
 
     // Extract paste id from request path
     char const* paste_id = req->path;
