@@ -148,6 +148,7 @@ cpaste_get_config(void)
     else
     {
         kore_log(LOG_DEBUG, "Loading config");
+        srand(time(NULL));
         // Find the config file:
         // - check CPASTE_CONFIG_FILE
         // - check PWD
@@ -200,8 +201,6 @@ cpaste_get_config(void)
 
             // TODO semantic exit codes needed
         }
-
-        srand(time(NULL));
     }
 }
 
