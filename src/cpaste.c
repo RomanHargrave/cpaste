@@ -1,5 +1,5 @@
 /*
- * cpaste is an HTTP "paste bin", which accepts - without authentication - 
+ * cpaste is an HTTP "paste bin", which accepts - without authentication -
  * text documents and stores them for later retrieval via a randomly generated
  * identifier.
  *
@@ -14,7 +14,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -60,12 +60,12 @@ int HTTP_cpaste_route_view(struct http_request*);
 /*
  * System/libc support
  */
-extern int __xpg_strerror_r (int, char*, size_t); // thanks, glibc 
+extern int __xpg_strerror_r (int, char*, size_t); // thanks, glibc
 static inline char*
 cpaste_strerror(int errint)
 {
     char* buff = malloc(512 * sizeof(char));
-    __xpg_strerror_r(errint, buff, 512); // thanks, glibc 
+    __xpg_strerror_r(errint, buff, 512); // thanks, glibc
     return buff;
 }
 
@@ -91,7 +91,7 @@ struct s_cpaste_config
 {
     // Section: storage
     char const*     storage_dir;
-    uint64_t        _storage_dir_len; 
+    uint64_t        _storage_dir_len;
     //              ^ not in config
     uint32_t        name_length;
 
@@ -113,7 +113,7 @@ _cpaste_inih_impl(void* cb_config, char const* section,
     // [storage]
     if      (strcmp(section, "storage") == 0)
     {
-        if      (strcmp(name, "directory") == 0) 
+        if      (strcmp(name, "directory") == 0)
         {
             config->storage_dir         = strdup(value);
             config->_storage_dir_len    = strlen(value);
@@ -138,7 +138,7 @@ _cpaste_inih_impl(void* cb_config, char const* section,
 /*
  * Returns the already loaded configuration, or loads and returns it.
  */
-static struct s_cpaste_config* 
+static struct s_cpaste_config*
 cpaste_get_config(void)
 {
     if (_cpaste_config)
@@ -200,6 +200,8 @@ cpaste_get_config(void)
 
             // TODO semantic exit codes needed
         }
+
+        srand(time(NULL));
     }
 }
 
@@ -213,7 +215,7 @@ cpaste_get_config(void)
  * "Pool" of characters which may be selected from by the paste id generator (cpaste_gen_id())
  * XXX if you modify this, be sure to update the router configuration in conf/cpaste.conf (NOT cpaste.ini)
  */
-static char const* _id_chars = 
+static char const* _id_chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 static uint16_t const _id_chars_lim = 62;
 
@@ -224,10 +226,9 @@ static uint16_t const _id_chars_lim = 62;
 static void
 cpaste_gen_id(uint16_t len, char* dest)
 {
-    srand(time(NULL));
     for(uint16_t charN = 0; charN < len - 1; ++charN)
     {
-        dest[charN] = _id_chars[random() % (_id_chars_lim - 1)]; 
+        dest[charN] = _id_chars[random() % (_id_chars_lim - 1)];
     }
     dest[len - 1] = 0;
 }
@@ -241,7 +242,7 @@ cpaste_gen_id(uint16_t len, char* dest)
  */
 
 /*
- * Checks that a paste with `paste_id` exists 
+ * Checks that a paste with `paste_id` exists
  */
 static inline bool
 cpaste_paste_check_exists(struct s_cpaste_config* config, char const* paste_id)
@@ -312,7 +313,7 @@ cpaste_paste_open(struct s_cpaste_config* config, char const* id)
 {
     char* path;
     int _asprintf_status = asprintf(&path, "%s/%s", config->storage_dir, id);
-    
+
     if (_asprintf_status >= 0)
     {
         int fd = open(path, O_RDWR | O_CREAT, 0640);
@@ -356,7 +357,7 @@ cpaste_generate_paste(struct s_cpaste_config* config, char** OUT_name)
  * static   /
  */
 
-static char const* _resp_paste_gen_fail = 
+static char const* _resp_paste_gen_fail =
     "unable to generate a new paste\n"
     ;
 
@@ -375,7 +376,7 @@ cpaste_http_resp_string(struct http_request* req, uint16_t resp_code,
  * Methods: All. Special behaviour when POST.
  *
  *  When not POST, returns usage information
- *  When POST, the first field from the upload is picked and stored, after which the paste name is returned and the 
+ *  When POST, the first field from the upload is picked and stored, after which the paste name is returned and the
  *  client, if it likes, is redirected to the paste (cpaste_kore_view_paste())
  */
 int
@@ -384,14 +385,14 @@ HTTP_cpaste_route_main(struct http_request* req)
     struct s_cpaste_config* config = cpaste_get_config();
 
     /*
-     * Prevent response and landing cache 
+     * Prevent response and landing cache
      */
     http_response_header(req, "Cache-control", "no-cache");
 
     /*
      * If not POST, respond with info
      */
-    if (req->method != HTTP_METHOD_POST) 
+    if (req->method != HTTP_METHOD_POST)
     {
         http_response_header(req, "Content-Type", "text/html;");
         return asset_serve_landing_html(req);
@@ -403,10 +404,10 @@ HTTP_cpaste_route_main(struct http_request* req)
         // Read POSTed request body
         http_populate_multipart_form(req);
 
-        // http file handle 
+        // http file handle
         struct http_file* to_paste;
-        // Pick the first file 
-        TAILQ_FOREACH(to_paste, &(req->files), list) 
+        // Pick the first file
+        TAILQ_FOREACH(to_paste, &(req->files), list)
         {
             kore_log(LOG_DEBUG, "picked the first field as paste contents: %s",
                      to_paste->name);
@@ -423,7 +424,7 @@ HTTP_cpaste_route_main(struct http_request* req)
         {
             char* paste_id = NULL;
             int paste_fd = cpaste_generate_paste(config, &paste_id);
-            
+
             if (paste_fd > 0)
             {
                 kore_log(LOG_INFO, "recieving new paste %s",
@@ -434,20 +435,20 @@ HTTP_cpaste_route_main(struct http_request* req)
                 // READING THE FIELD
                 //
                 //  Kore can store the request body in two ways, as suggested in http_file_read()
-                //  There can be a file descriptor for it, which allows for file IO 
+                //  There can be a file descriptor for it, which allows for file IO
                 //  Or the RB might be stored in an (mmapped?) memory region at req->http_body->data
                 //
                 // READING THE RB FD (http_body_fd != -1)
                 //
                 //  We can perform a copy from fd to fd using the sendfile() system call,
                 //   and specifying the offset as the position of the file
-                //  
+                //
                 // READING THE RB REGION (http_body_fd == -1)
                 //
-                //  We can read the memory region containing the RB from the position of the file 
+                //  We can read the memory region containing the RB from the position of the file
                 //
                 // ----------------------------------------------------------------------------
-               
+
                 ssize_t written = 0;
                 if (req->http_body_fd > 0 || req->http_body != NULL)
                 {
@@ -460,9 +461,9 @@ HTTP_cpaste_route_main(struct http_request* req)
                     {
                         kore_log(LOG_DEBUG, "request body presented as FD, saving via sendfile()");
                         off_t read_offset = to_paste->position;
-                        do 
+                        do
                         {
-                            written = sendfile(paste_fd, to_paste->req->http_body_fd, 
+                            written = sendfile(paste_fd, to_paste->req->http_body_fd,
                                                &read_offset, to_paste->length - written);
                             kore_log(LOG_DEBUG, "copying paste %s from request buffer to file: +%li %li/%lu",
                                      paste_id, read_offset, written, to_paste->length);
@@ -485,7 +486,7 @@ HTTP_cpaste_route_main(struct http_request* req)
                     else if (req->http_body != NULL)
                     {
                         kore_log(LOG_DEBUG, "request body presented as region, saving via write()");
-                        written = write(paste_fd, req->http_body->data + to_paste->position + to_paste->offset, 
+                        written = write(paste_fd, req->http_body->data + to_paste->position + to_paste->offset,
                                         to_paste->length);
                     }
 
@@ -500,7 +501,7 @@ HTTP_cpaste_route_main(struct http_request* req)
                             char* _location;
                             asprintf(&_location, "%s/%s", config->http_root, paste_id);
                             http_response_header(req, "Location", _location);
-                            cpaste_http_resp_string(req, 200, _location); 
+                            cpaste_http_resp_string(req, 200, _location);
                             free(_location);
                         }
 
@@ -562,7 +563,7 @@ HTTP_cpaste_route_view(struct http_request* req)
         do
         {
             char* match = strstr(next, "/");
-            if (match != NULL) 
+            if (match != NULL)
             {
                 next = match + 1;
             }
@@ -593,7 +594,7 @@ HTTP_cpaste_route_view(struct http_request* req)
                      paste_fd, errdesc);
             free(errdesc);
         }
-        else 
+        else
         {
             void* paste_data = mmap(NULL, paste_size, PROT_READ, MAP_SHARED, paste_fd, 0);
 
@@ -621,7 +622,7 @@ HTTP_cpaste_route_view(struct http_request* req)
                 break;
             default:
                 cpaste_http_resp_string(req, 500, "Unable to open paste");
-                char* errdesc = cpaste_strerror(errno); 
+                char* errdesc = cpaste_strerror(errno);
                 kore_log(LOG_ERR, "Error reading paste %s: %s",
                          paste_id, errdesc);
                 free(errdesc);
